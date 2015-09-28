@@ -1,0 +1,14 @@
+4b552cb066fb65c86b382d7b3cd57c75 *DESCRIPTION
+af33f18c70d33065db9ced38f965e62f *NAMESPACE
+9fbd6ecf7dd09106d1b902323e1a09e0 *R/RcppExports.R
+4aafab7e7551778dcbb3a6621bfadeaf *R/auxiliaryFns.R
+4f485ca93c03ad52cb26d1a74de82efb *R/iLap.R
+beed9f281b04bd59226b93f7dd33b7e8 *R/iLap2d.R
+efaca9f54544f56f27de85b8eb2d1f7d *R/iLaplace.R
+039e36685332c8f78c0ac8a218d32609 *man/iLap.Rd
+9305d44e32279fe0e79da100bf2437e8 *man/iLap2d.Rd
+9b3b1b0e7ac896cde9ed6b754a7dcd63 *man/iLaplace-package.Rd
+71dd29b254a181b3b9dda4ef7383c09a *src/Makevars
+8cdcef86f6eed62bceee879b2a80e91b *src/Makevars.win
+08055c6101f030f34838ddfbc322e9e7 *src/RcppExports.cpp
+2e17941c1bfd6d3e1a21a61a0183fe54 *src/funs.cpp
