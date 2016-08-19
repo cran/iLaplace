@@ -1,26 +1,20 @@
-##' @name iLap
-##' @importFrom stats nlminb
-##' @import doParallel
-##' @import foreach
-##' @import iterators
-##' @import Rcpp
-##' @import fastGHQuad
-##' @useDynLib iLaplace
+##' @name iLapCW_par
 ##'
-##' @title Improved Laplace approximation for integrals of unimodal functions
+##' @title Improved Laplace approximation without nested optimisation in parallel
 ##'
-##' @description This function implements the improved Laplace approximation of Ruli et al. (2015) for multivariate integrals of user-written unimodal functions. See "Details" below for more information.
-##' @usage iLap(fullOpt, ff, ff.gr, ff.hess, quad.data, ...)
+##' @description Does the same as \code{iLapCW} but in parallel.
+##' @usage iLapCW_par(fullOpt, ff, ff.gr, ff.hess, quad.data,
+##'      control = list(n.cores = 1), ...)
 ##' @param fullOpt A list containing the minium (to be accesed via \code{fullOpt$par}), the value of the function at the minimum (to be accessed via \code{fullOpt$objective}) and the Hessian matrix at the minimum (to be accessed via \code{fullOpt$hessian}
 ##' @param ff The minus logarithm of the integrand function (the \code{h} function; see "Details").
 ##' @param ff.gr The gradient of \code{ff}, having the exact same arguments as  \code{ff}.
 ##' @param ff.hess The Hessian matrix of\code{ff}, having the exact same arguments as  \code{ff}.
-##' @param quad.data Data for the Gaussian-Herimte quadratures; see "Details"
+##' @param quad.data Data for the Gaussian-Herimte quadratures; see "Details".
+##' @param control A named list of control parameters with elements \code{n.cores} which sets the number of cores to be used for the parallel computiations. See "Details" for more information.
 ##' @param ... Additional arguments to be passed to \code{ff}, \code{ff.gr} and \code{ff.hess}
 ##' @return A double, the logarithm of the integral
 ##'
-##' @details \code{iLap} approximates integrals of the type \deqn{I = \int_{x\in\mathcal{R}^d}\exp\{-h(x)\}\,dx}{I = \int\exp(-h(x)) dx} where \eqn{-h(\cdot)}{-h()} is a concave and unimodal function, with \eqn{x}{x} being \eqn{d}{d} dimensional real vector (\eqn{d>1}{d>1}). The approximation of \eqn{I} is obtained as the ratio between the unormalised kernel \eqn{-h(x)}{-h(x)} and an approximate density function \eqn{f(x)}{f(x)}, both evaluated at the modal value \eqn{x = \hat{x}}{x = \hat{x}}. The approximate density function \eqn{f(x)}{f(x)} is obtained by resorting to the Laplace approximation for marginal densities. The minimisations are performed with \code{\link[stats]{nlminb}} by suppling the gradient \code{ff.gr} and Hessian matrix {ff.hess} of \eqn{f(x)}{f(x)}. The normalisation of the univariate components is perforemd via Gaussian-Hermite quadratures as implemented in the function \code{\link[fastGHQuad]{aghQuad}}. The Gaussian-Quadrature data, to be provided via the argument \code{quad.data}, can be computed with the function \code{\link[fastGHQuad]{gaussHermiteData}} for a desired number of quadrature points. See "Examples" below.
-##'
+##' @details See \code{iLapCW}.
 ##'
 ##' @references
 ##' Ruli E., Sartori N. & Ventura L. (2015)
@@ -28,7 +22,10 @@
 ##' \url{http://arxiv.org/abs/1502.06440}
 ##'
 ##' Liu, Q. and Pierce, D. A. (1994). A Note on Gauss-Hermite
-##' Quadrature. \emph{Biometrika} \bold{81}, 624-629.
+##' Quadrature. \emph{Biometrika} \bold{81} 624-629.
+##'
+##' Cox, D.R and Wermuth, W. (1990). An approximation to maximum
+##' likelihood estimates in reduced models. \emph{Biometrika} \bold{77}, 747-761
 ##' @examples
 ##'
 ##' # The negative integrand function in log
@@ -94,30 +91,35 @@
 ##'
 ##'
 ##' @export
-iLap <- function(fullOpt, ff, ff.gr, ff.hess, quad.data, ...)
+iLapCW_par <- function(fullOpt, ff, ff.gr, ff.hess, quad.data,
+                       control = list(n.cores = 1),
+                       ...)
 {
   i = NULL
 
   m = length(fullOpt$par)
   obj = aux_quant(fullOpt$hessian, m)
   se = obj[[1]]
-  # se = SEv(fullOpt$hessian, m)
-
-  # fullOpt$ldblock =  ldetHessBlocks(fullOpt$hessian, m)
   fullOpt$ldblock =  obj[[m+1]]
-  tmp = sapply(1:m, function(i) log(aghQuad(g = ila.densv,
-                                            muHat = fullOpt$par[i],
-                                            sigmaHat = se[i],
-                                            rule =  quad.data,
-                                            fullOpt = fullOpt,
-                                            ff = ff,
-                                            ff.gr = ff.gr,
-                                            ff.hess = ff.hess,
-                                            index = i,
-                                            m = m, ...)))
-  norm.const = sum(tmp)
+  fullOpt$delta = obj[-c(1,m+1)]
+
+  registerDoParallel(cores = control$n.cores)
+
+  norm.const <- foreach(i = 1:m, .combine = sum) %dopar% {
+    log(aghQuad(g = ila.densCWv,
+                muHat = fullOpt$par[i],
+                sigmaHat = se[i],
+                rule =  quad.data,
+                fullOpt = fullOpt,
+                ff = ff,
+                ff.gr = ff.gr,
+                ff.hess = ff.hess,
+                index = i,
+                m = m, ...))
+    }
 
   out = -m*0.5*log(2*pi) + 0.5*fullOpt$ldblock[1]
+  stopImplicitCluster()
 
   return(-fullOpt$objective - out + norm.const)
 }
